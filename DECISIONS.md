@@ -5,6 +5,39 @@ or more real alternatives), newest at the top.
 
 ---
 
+## 2026-09-15 — Mega-menu clicks: hover the actual target child, not just check its visibility
+
+A GitHub Actions CI run (the PR #1 merge commit) had 2 header mega-menu tests fail after exhausting
+both retries, with a `locator.click: Timeout 15000ms exceeded` that didn't reproduce locally. Rather
+than assume "CI is just slower" and raise a timeout number, pulled the actual trace/error-context
+from that run first. The real cause was a race, not raw slowness:
+
+```
+- element is not stable
+- <div class="wpb_wrapper">...</div> ... intercepts pointer events
+```
+
+`openMegaMenu()`'s wait (`expect(sampleChild).toBeVisible()`) only confirms a non-zero bounding box,
+which can be true mid-animation, before the reveal transition has actually settled. Between that
+check and the caller's separate `.click()` call, nothing keeps the mouse "in" the menu, so
+hoverIntent's own mouse-out timer could start closing it again - the click then lands on whatever
+page content is underneath instead of the real link, exactly matching the trace's "wrapper
+intercepts pointer events."
+
+**Alternative considered: just raise `actionTimeout`.** Simpler, but wouldn't have actually fixed
+it - the failure mode is "the click hits the wrong element," not "the click ran out of time." A
+longer timeout just means retrying the same race for longer before giving up.
+
+**Chosen:** `openMegaMenu()` now also calls `.hover()` on the exact child the caller is about to
+click (every current caller already passes that specific child as `sampleChildName`, not an
+arbitrary "menu is open" probe) instead of only checking its visibility. Playwright's `hover()`
+retries until the target is genuinely stable, which absorbs the animation-settling wait for free,
+and leaves the mouse resting on the real target - closing the gap where the menu could start
+closing again before the caller's immediately-following `.click()` lands. Passes locally, and is
+being verified against the live CI runner (where the original race actually reproduced, not
+locally) via several extra `workflow_dispatch` runs - see PROJECT-LOG.md for the outcome once
+those complete.
+
 ## 2026-09-15 — Homepage locators: `getByRole` + `:visible`, not raw text matching
 
 Building the homepage suite surfaced a bigger version of the header's duplicate-DOM problem: several
