@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { TOP_LEVEL_LINKS, MEMBER_LOGIN_HEADER_LINK } from '../support/site-map';
 import { headerLink } from '../support/nav-helpers';
 

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { SOLUTIONS_MENU, ABOUT_US_MENU, NavParent } from '../support/site-map';
 import { headerLink, headerButton, openMegaMenu } from '../support/nav-helpers';
 
