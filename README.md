@@ -18,9 +18,10 @@ way it is (passive-only API discovery, production-only target, no login automati
   supposed to, and does the resulting page load.
 - `tests/support/` - shared locator helpers and the hand-maintained site map the nav suites are
   generated from.
-- `.github/workflows/playwright.yml` - CI: runs the suite on every push/PR, publishes a JUnit XML
-  report and an HTML report (with a video of every test, pass or fail) as downloadable workflow
-  artifacts.
+- `.github/workflows/playwright.yml` - CI: runs the suite on every push/PR, publishes a JUnit check
+  and posts a PR comment linking straight to the published HTML report (video of every test, pass or
+  fail, plus an in-browser trace viewer) on GitHub Pages - no zip download required. Raw
+  videos/traces/junit.xml also stay available as a downloadable artifact.
 - `DECISIONS.md` / `PROJECT-LOG.md` - a running log of real decisions and what shipped, in the same
   format used on [the WrestlingProject repo](https://github.com/jkzarnosky) this pattern is borrowed
   from - written for a reader who wasn't in the room, since that's the point of an interview

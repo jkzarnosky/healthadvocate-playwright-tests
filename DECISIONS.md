@@ -5,6 +5,40 @@ or more real alternatives), newest at the top.
 
 ---
 
+## 2026-09-15 — Publish the HTML report to GitHub Pages instead of zip-only artifacts
+
+JZ asked whether test reports/videos could be viewed directly from the PR instead of downloading a
+zip from the Actions artifacts tab.
+
+**Alternative considered: keep `actions/upload-artifact` only (the original setup).** Simplest, no
+extra permissions or third-party actions, but the HTML report — which already embeds a video player
+per test and a full trace viewer — is only reachable by downloading a zip, extracting it, and opening
+`index.html` locally. That's real friction for a reviewer who just wants to glance at what a run
+looked like.
+
+**Alternative considered: `actions/upload-pages-artifact` + `actions/deploy-pages` (GitHub's newer,
+"Actions" Pages build type).** Cleaner/more current API, but it deploys to a single site per repo —
+no built-in way to keep one persistent URL per open PR without hand-rolling path management the
+action isn't designed for.
+
+**Chosen: `peaceiris/actions-gh-pages`, deploying to a `gh-pages` branch with a per-PR
+`destination_dir` (`reports/pr-<number>`) and `keep_files: true`.** Each PR gets one stable URL that
+updates in place on every push (old runs' reports for *other* PRs aren't wiped, since `keep_files`
+only protects existing paths outside the current deploy's `destination_dir`). A PR comment (posted by
+`peter-evans/create-or-update-comment`, using a comment-tag so reruns edit the same comment instead of
+piling up new ones) links straight to it. The Playwright HTML report is fully self-contained static
+HTML/JS/data, so it renders correctly from a GitHub Pages subpath with no server-side piece needed —
+confirmed by how `playwright show-report` itself just serves the same folder statically.
+
+Raw `test-results/` (videos, traces, `junit.xml`) stays available as a **downloadable** artifact too
+— the published HTML report is the primary "look without downloading" path, not a full replacement
+for anyone who wants a local trace file open in the standalone Trace Viewer app.
+
+**Fork PRs are skipped** (`report_meta` step's `if` condition): the default `GITHUB_TOKEN` on a
+fork's PR run has no write access to push to `gh-pages` or comment on the PR. Not a concern for a
+solo project today; documented so it doesn't look like a silent bug if a fork PR ever shows up
+without a report comment.
+
 ## 2026-09-15 — Scope: passive discovery only, production-only target, no login yet
 
 Three related decisions made before any code was written, in response to clarifying questions since
