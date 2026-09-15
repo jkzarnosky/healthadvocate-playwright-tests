@@ -39,7 +39,17 @@ done. Several real markup quirks in this site (documented in
 docs/discovery/testability-notes.md) only surfaced by running tests and reading why they failed, not
 by reading the DOM statically.
 
-## Git workflow
-No branch protection is configured (solo project). Commit directly to `main`. Still write real
-commit messages — this repo is meant to read like a professional history, not just a working
-directory with snapshots.
+## Git workflow: no direct pushes to main
+`main` is branch-protected (PR + a passing "Run Playwright suite" check required, no direct pushes,
+no force-pushes, enforced even for the repo owner/admin). For any change, code or docs:
+
+1. Create a branch (e.g. `homepage-suite`, `docs/...`, `fix/...`).
+2. Commit and push the branch, open a PR (`gh pr create`, not `--draft` unless asked).
+3. Wait for CI to pass, then tell JZ the PR is ready for review — do not merge it yourself unless
+   explicitly told to.
+4. JZ reviews and merges (branches auto-delete on merge - repo setting).
+
+This applies to every change, including PROJECT-LOG.md/DECISIONS.md updates and Claude Code's own
+doc edits — there is no "small enough to skip the PR" exception. (Earlier commits in this repo's
+history were pushed straight to `main`, before this was set up on 2026-09-15 — that's not a
+precedent to repeat.)
