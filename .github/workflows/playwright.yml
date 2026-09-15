@@ -1,0 +1,116 @@
+name: Playwright Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: write
+
+jobs:
+  test:
+    name: Run Playwright suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        id: run_tests
+        run: npx playwright test
+        continue-on-error: true
+
+      - name: Publish JUnit test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Playwright JUnit Results
+          path: test-results/junit.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Upload raw test-results (videos, traces, junit.xml)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 14
+
+      # The HTML report (viewable in-browser, with an embedded player for every
+      # test's video and an embedded trace viewer) is published to GitHub Pages
+      # instead of only being offered as a zip download - see DECISIONS.md
+      # ("Publish the HTML report to GitHub Pages"). Runs from a fork's PR are
+      # skipped: the default token has no write access to push gh-pages content
+      # there.
+      - name: Determine report destination
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        id: report_meta
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "dir=reports/pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=reports/main" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish HTML report to GitHub Pages
+        if: always() && steps.report_meta.outcome == 'success'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: playwright-report
+          destination_dir: ${{ steps.report_meta.outputs.dir }}
+          keep_files: true
+
+      # peter-evans/create-or-update-comment has no built-in "find my previous
+      # comment" input (an earlier version of this workflow assumed a
+      # `comment-tag` input that doesn't actually exist in v4 - confirmed by a
+      # real CI run warning "Unexpected input(s) 'comment-tag'" and two
+      # separate comments landing on the same PR). find-comment locates the
+      # marker below explicitly; its output feeds comment-id so the next step
+      # edits that comment instead of creating a new one.
+      - name: Find previous report comment
+        if: always() && steps.report_meta.outcome == 'success' && github.event_name == 'pull_request'
+        uses: peter-evans/find-comment@v3
+        id: find_comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: <!-- playwright-report-comment -->
+
+      - name: Comment report link on the PR
+        if: always() && steps.report_meta.outcome == 'success' && github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.find_comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          edit-mode: replace
+          body: |
+            <!-- playwright-report-comment -->
+            ### Playwright report — ${{ steps.run_tests.outcome == 'success' && '✅ all tests passed' || '❌ some tests failed' }}
+
+            [View the full HTML report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ steps.report_meta.outputs.dir }}/) — includes a video of every test and an in-browser trace viewer, no download needed.
+
+            Commit: ${{ github.event.pull_request.head.sha }} · Run: [#${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+      - name: Fail job if tests failed
+        if: steps.run_tests.outcome == 'failure'
+        run: exit 1

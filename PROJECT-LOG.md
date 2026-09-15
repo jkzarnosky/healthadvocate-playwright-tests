@@ -9,6 +9,28 @@ force them apart.
 
 ---
 
+## [2026-09-15] — [MILESTONE] CI: publish the HTML report to GitHub Pages, link it from the PR
+**Shipped:** JZ asked whether test results/videos could be viewed straight from the PR instead of
+downloading a zip. The workflow now deploys the Playwright HTML report (embedded video per test +
+in-browser trace viewer) to GitHub Pages after every run, and posts/updates a PR comment linking to
+it. Each PR gets one stable report URL that updates on every push, instead of piling up separate
+downloads. `gh-pages` branch and the repo's Pages setting were created directly via the GitHub API to
+get this live without needing a first workflow run.
+
+**Decisions made:**
+- **[DECISION]** `peaceiris/actions-gh-pages`, deploying to `gh-pages` with a per-PR
+  `destination_dir` and `keep_files: true`, over GitHub's newer Actions-based Pages deploy (single
+  site per repo, no natural per-PR path) or leaving it as artifact-only. See DECISIONS.md.
+- **[DECISION]** Fork PRs are skipped for the Pages deploy/PR comment (no write access on that
+  token) — not a real constraint for a solo project today, documented so it isn't mistaken for a bug
+  later.
+
+**Next up:** Confirm the workflow runs clean end to end on the open PR (#1) and that the published
+report link actually resolves, then merge it. After that, suite 2 (homepage links/navigation), per
+the original ordering.
+
+---
+
 ## [2026-09-15] — [MILESTONE] Discovery pass + base repo + first suite: header navigation
 **Shipped:** Before writing any test, spent a session manually exploring the live
 healthadvocate.com site to understand what makes it easy/hard to automate
