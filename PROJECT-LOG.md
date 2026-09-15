@@ -9,6 +9,38 @@ force them apart.
 
 ---
 
+## [2026-09-15] — [MILESTONE] Fixed a real CI-only mega-menu race; main now requires PRs
+**Shipped:** A CI run had flagged 2 header mega-menu tests failing after exhausting all retries - a
+race, not a flaky timeout, confirmed by reading the actual trace rather than guessing. Fixed by
+having the shared `openMegaMenu()` helper hover the exact link it's about to click (not just check
+its visibility) before returning, so the mouse never leaves the menu in the gap before the click.
+Verified against the live CI runner itself (where the race actually reproduced) with 4 extra manual
+runs: 3 clean, 1 that hit the same class of timeout once but recovered on the very next retry in 4s
+instead of exhausting all retries like before. Also: JZ asked for every change to `main` to go
+through a PR from now on - real GitHub branch protection is now enabled (PR + passing CI required,
+no direct or force pushes, enforced even for the repo owner), and CLAUDE.md's git-workflow section
+was rewritten to match instead of its previous (accurate at the time, now stale) "commit directly to
+main" guidance.
+
+**Decisions made:**
+- **[DECISION]** Fixed the actual race (hover the real target, not a separate "sample" element)
+  instead of just raising `actionTimeout` - the failure mode was "the click hits the wrong element,"
+  which a longer timeout wouldn't have fixed, just delayed hitting the same race. See DECISIONS.md.
+- **[DECISION]** Real branch protection (GitHub API), not just a CLAUDE.md instruction to follow -
+  makes "no direct pushes" enforced rather than a convention that could be forgotten.
+
+**Also found (unrelated, from the verification batch):** firing several `workflow_dispatch` runs
+back to back made one run's GitHub Pages deploy step fail on a git push conflict - two runs' deploys
+to the shared `gh-pages` branch raced each other. All 56 tests had already passed in that run; only
+the deploy step failed. Self-inflicted by the verification method (real solo-project usage doesn't
+trigger overlapping runs), not fixed yet - noted in DECISIONS.md as a real gap worth a
+`concurrency:` group if it ever happens during normal usage.
+
+**Next up:** Homepage/API suites and this fix are all shipped; login is still deferred pending
+separate research, and accessibility/security testing remain noted follow-ups.
+
+---
+
 ## [2026-09-15] — [MILESTONE] Homepage suite + read-only API suite; repo set to auto-delete merged branches
 **Shipped:** Two new suites. `tests/homepage/` covers the homepage's own content: every
 call-to-action link, all 8 "solution tile" cards (heading link + icon link each), the footer/legal

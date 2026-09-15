@@ -33,10 +33,26 @@ click (every current caller already passes that specific child as `sampleChildNa
 arbitrary "menu is open" probe) instead of only checking its visibility. Playwright's `hover()`
 retries until the target is genuinely stable, which absorbs the animation-settling wait for free,
 and leaves the mouse resting on the real target - closing the gap where the menu could start
-closing again before the caller's immediately-following `.click()` lands. Passes locally, and is
-being verified against the live CI runner (where the original race actually reproduced, not
-locally) via several extra `workflow_dispatch` runs - see PROJECT-LOG.md for the outcome once
-those complete.
+closing again before the caller's immediately-following `.click()` lands.
+
+**Verified against the live CI runner, not just locally** (the race never reproduced locally in the
+first place): 4 extra `workflow_dispatch` runs after the fix landed. 3 were clean (56/56 first try).
+The 4th still hit the same class of timeout once - one "Solutions" child, first attempt, 19.7s - but
+recovered on the very next retry in 4s, versus the original failure mode where retries kept hitting
+the identical race and never recovered. Read as: the fix closes the race in the overwhelming
+majority of cases and turns the rest into genuinely transient CI slowness that Playwright's normal
+retry already covers, not a full, guaranteed elimination - reasonable given it depends on exact
+timing on a shared runner. Not chasing this further unless it recurs.
+
+**Unrelated finding from the same verification batch:** running 3 `workflow_dispatch` triggers back
+to back made one run's "Publish HTML report to GitHub Pages" step fail outright - `failed to push
+some refs` - because two runs' deploys to the shared `gh-pages` branch raced each other. All 56
+tests had already passed by that point in the run; the job only shows red because of this unrelated
+push conflict. A real gap (concurrent runs deploying to `gh-pages` can race even when their
+`destination_dir`s don't overlap), but a self-inflicted one from firing several manual runs at once
+to stress-test the fix above - normal solo-project usage doesn't trigger overlapping runs like this.
+Logged here rather than fixed silently; worth a `concurrency:` group on the Pages-deploy step if it
+ever happens during real usage.
 
 ## 2026-09-15 — Homepage locators: `getByRole` + `:visible`, not raw text matching
 
