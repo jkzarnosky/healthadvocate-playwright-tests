@@ -9,6 +9,26 @@ force them apart.
 
 ---
 
+## [2026-09-15] — [MILESTONE] CI-timeout investigation closed out: 9 stress-test runs, verdict logged
+**Shipped:** No new code - closing out the CI-flakiness investigation from the two entries below with
+the full verification record, since JZ specifically flagged this troubleshooting process as worth
+documenting as clearly as the fixes themselves. Across both stress-test batches (9 `gh
+workflow_dispatch` runs total, each watched to completion and any failure re-read from its actual
+trace/log rather than taken at face value): every individually-triggered run was clean; the only
+run with real test failures was also the most heavily concurrent one (4 simultaneous full suites at
+once, self-inflicted by the verification method), and its failure pattern didn't match either
+previously-diagnosed race.
+
+**Decisions made:**
+- **[DECISION]** Stopped the investigation here rather than add further defensive complexity to
+  chase a failure mode that only appeared under artificially heavy concurrent load real usage
+  (one PR, one run) doesn't produce. See DECISIONS.md for the full tally and reasoning.
+
+**Next up:** Homepage/API suites and both CI-reliability fixes are shipped and merged. Login remains
+deferred pending separate research; accessibility/security testing are still noted follow-ups.
+
+---
+
 ## [2026-09-15] — [MILESTONE] Found and fixed a second CI interference source: the hero carousel
 **Shipped:** Stress-testing the mega-menu fix (previous entry) with extra manual CI runs surfaced a
 different real failure: Revolution Slider, the homepage's auto-rotating hero carousel, can spawn an
