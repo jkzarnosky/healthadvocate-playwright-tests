@@ -165,6 +165,22 @@ production site. That constrains what's reasonable to automate at all:
   safe test account or environment exists) needs its own conversation with the team before any code
   is written against it.
 
+## The homepage's auto-rotating hero carousel can steal clicks meant for the header
+
+Revolution Slider (`sr6`), the homepage hero carousel, keeps auto-rotating for as long as a test
+sits on the page - and during a slide transition it can spawn an `<rs-mask-wrap>` element that
+intercepts pointer events for whatever's underneath, including (confirmed via a real CI trace) the
+header well above where the carousel visually sits. Unlike the mega-menu's one-time reveal
+animation (see below), this recurs periodically and indefinitely, so no amount of waiting reliably
+avoids it - a click can land exactly when a transition is mid-flight at any point in a test, not
+just once at page load.
+
+**Fix used:** every spec now imports `test`/`expect` from `tests/support/fixtures.ts` instead of
+`@playwright/test` directly. Its `page` fixture injects `pointer-events: none` onto the slider's
+wrapper elements via `page.addInitScript()` (re-applied on every navigation, not just the first).
+None of this project's tests exercise the slider itself, so disabling its ability to intercept
+clicks doesn't weaken what's actually being tested.
+
 ## Third-party embeds add real load/flakiness risk
 
 - A NICE inContact live-chat widget loads as a sandboxed `<iframe>` and uses IndexedDB

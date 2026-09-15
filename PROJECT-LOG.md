@@ -9,6 +9,25 @@ force them apart.
 
 ---
 
+## [2026-09-15] — [MILESTONE] Found and fixed a second CI interference source: the hero carousel
+**Shipped:** Stress-testing the mega-menu fix (previous entry) with extra manual CI runs surfaced a
+different real failure: Revolution Slider, the homepage's auto-rotating hero carousel, can spawn an
+element mid-transition that intercepts clicks meant for the header - confirmed by an actual trace,
+not assumed. Unlike the mega-menu race, this recurs for as long as a test is on the page, so waiting
+it out isn't reliable. Fixed with a shared test fixture (`tests/support/fixtures.ts`) that every
+spec now imports from, injecting CSS to disable pointer events on the slider's wrapper elements.
+
+**Decisions made:**
+- **[DECISION]** CSS injection via a shared fixture, not a per-test wait/retry - the interference is
+  periodic and ongoing, not a one-time animation with a stable end-state to wait for. See
+  DECISIONS.md.
+
+**Next up:** Homepage/API suites, the mega-menu fix, and this fix are all shipped and going through
+PR review. Login remains deferred pending separate research; accessibility/security testing are
+still noted follow-ups.
+
+---
+
 ## [2026-09-15] — [MILESTONE] Fixed a real CI-only mega-menu race; main now requires PRs
 **Shipped:** A CI run had flagged 2 header mega-menu tests failing after exhausting all retries - a
 race, not a flaky timeout, confirmed by reading the actual trace rather than guessing. Fixed by

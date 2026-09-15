@@ -5,6 +5,34 @@ or more real alternatives), newest at the top.
 
 ---
 
+## 2026-09-15 — Neutralize Revolution Slider's pointer-event interference in tests
+
+Stress-testing the mega-menu hover fix (below) with extra CI runs surfaced a *second*, unrelated
+failure with a different real cause: `<rs-mask-wrap>...</rs-mask-wrap> ... intercepts pointer
+events` - an element belonging to Revolution Slider (`sr6`), the homepage's auto-rotating hero
+carousel, not the WPBakery wrapper from the original race.
+
+This isn't the same class of problem. The mega-menu race was a one-time animation settling after
+a hover - waiting for genuine stability fixes it for good. The carousel keeps auto-rotating for as
+long as a test is on the page, so no amount of waiting reliably avoids a transition happening to
+land on top of a click - it can recur at any point during a test, not just once at page load.
+
+**Alternative considered: retry/wait around it, same pattern as the mega-menu fix.** Rejected -
+there's no stable end-state to wait for when the thing causing interference never stops moving.
+
+**Alternative considered: keep raising `actionTimeout` until it stops happening.** Same problem as
+timeout-only was for the mega-menu race - it doesn't address a periodic, recurring interruption,
+just gives it more chances to happen to line up with a click.
+
+**Chosen:** inject CSS (`pointer-events: none` on `rs-module-wrap`/`rs-mask-wrap`) via
+`page.addInitScript()` in a shared fixture (`tests/support/fixtures.ts`) that every spec now
+imports `test`/`expect` from instead of `@playwright/test` directly. None of these tests exercise
+the slider's own content or behavior, so disabling its ability to intercept pointer events doesn't
+weaken what's actually being tested - it just stops a decorative, unrelated carousel from
+occasionally stealing a click meant for the header or homepage content. `addInitScript` re-applies
+on every navigation within a test, not just the first `page.goto()`, so this holds regardless of
+how many times a test navigates.
+
 ## 2026-09-15 — Mega-menu clicks: hover the actual target child, not just check its visibility
 
 A GitHub Actions CI run (the PR #1 merge commit) had 2 header mega-menu tests fail after exhausting
