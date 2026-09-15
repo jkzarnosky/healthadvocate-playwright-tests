@@ -5,6 +5,75 @@ or more real alternatives), newest at the top.
 
 ---
 
+## 2026-09-15 — Homepage locators: `getByRole` + `:visible`, not raw text matching
+
+Building the homepage suite surfaced a bigger version of the header's duplicate-DOM problem: several
+"solution tile" links exist as **two or more separate content blocks** on the page itself (not just
+a header/sticky-header duplicate), almost certainly a hand-authored desktop/mobile split rather than
+one block reflowed by CSS - confirmed by counting real DOM matches (e.g. "Wellness & Coaching"
+resolves to 6 total `<a>` elements across header + two content copies).
+
+**Alternative considered: keep the header suite's raw-text + `:visible` CSS approach
+(`nav-helpers.ts`'s pattern).** It's what the header suite already used successfully. Rejected for
+homepage content specifically because it broke on two edge cases that pattern can't handle: (1) a
+tile heading with a literal line break in its markup (`Mental Health<br>& Work/Life (EAP)`), which a
+single-space regex never matches but doesn't affect real users at all - the browser's own accessible
+name computation already normalizes it; and (2) a tile whose icon-link image has alt text identical
+to the heading text, so text-based matching alone can't tell heading and icon apart.
+
+**Chosen:** `getByRole('link', { name, exact: true })` intersected with a `:visible` locator
+(`tests/support/locators.ts`), which sidesteps the whitespace problem for free (accessible-name
+computation normalizes it) and adds `tileHeadingLink()` (excludes WPBakery's
+`vc_single_image-wrapper` icon-image class) for the one case where heading and icon still share an
+exact accessible name. `nav-helpers.ts`'s header-specific helpers were left as-is rather than
+rewritten to match - they work correctly for the header's own duplication pattern, and the shared
+`exactTextRegex` logic was pulled into `locators.ts` so both approaches reuse the same escaping code
+without duplicating it.
+
+## 2026-09-15 — Two solution-tile-link tests scaled back from an exact-count assertion
+
+The Mind & Body EAP tile's icon link uses a stale URL (`/site/mind-body-eap`, missing
+`/product-index/`) that still works via a 301 - a genuine, useful finding (see testability-notes.md).
+The first version of this test generalized it into "assert exactly 2 links share this href" for
+every tile, expecting to catch the same class of bug elsewhere. Real DOM counts turned out to be 2,
+4, or 6 depending on the tile (the responsive-duplication issue above), so an exact-count assertion
+would have been asserting incidental duplication-count trivia, not anything meaningful.
+
+**Chosen:** for the 7 tiles where heading and icon already agree, assert "at least 2 visible links
+share this href" (loose, but still catches a link actually going missing) instead of an exact count;
+for Mind & Body EAP, keep the specific, real assertion (icon href differs from heading href, and
+301-redirects to it) as its own dedicated test rather than folding it into the generic loop.
+
+## 2026-09-15 — Search: structural check only, not a submitted-query test
+
+The header's search `<input>` is present on every page load but renders **off-screen** (a negative Y
+coordinate) at the desktop viewport this suite runs at - confirmed by attempting to click it and
+getting Playwright's "entirely outside the viewport" error, then reproducing the same box position
+via a raw DOM bounding-rect check. A quick manual check at a 375px mobile viewport (hamburger menu
+open) didn't turn up an obvious way to reach it either in the time spent looking.
+
+**Alternative considered:** force-interact with the hidden input (Playwright's `{ force: true }`
+bypasses actionability/visibility checks) to submit a real query and assert on the results page.
+Rejected - that tests something a real user literally cannot do at this viewport, which isn't a
+meaningful pass/fail signal either way.
+
+**Chosen:** `homepage-search.spec.ts` asserts the form's structure only (`method="get"`, the
+`action` URL, the `s` field name) - real information a future test could build on - and
+`testability-notes.md`/`homepage-map.ts` document why an interactive test isn't here yet. A
+mobile-viewport interactive search test is a reasonable future addition, not abandoned scope.
+
+## 2026-09-15 — API tests: fixed a wrong assumption from discovery instead of asserting it as fact
+
+`api-notes.md`'s discovery pass assumed `GET .../contact-form-7/v1/contact-forms` was safely
+readable because it's *listed* as a public route in the `wp-json` root index. Writing an actual test
+against it (still just a `GET`) showed that's wrong: it 403s with `wpcf7_forbidden`. Being listed in
+the route index means the route exists, not that it's callable without authentication.
+
+**Chosen:** corrected api-notes.md rather than leaving the wrong assumption on record, and turned
+the real behavior into a test (`wp-rest-api.spec.ts`, "endpoints that look public but are not") -
+asserting the 403 is itself useful: if this ever starts returning 200, that's a real permissions
+change worth noticing, not just a curiosity from one discovery session.
+
 ## 2026-09-15 — Publish the HTML report to GitHub Pages instead of zip-only artifacts
 
 JZ asked whether test reports/videos could be viewed directly from the PR instead of downloading a

@@ -14,10 +14,14 @@ way it is (passive-only API discovery, production-only target, no login automati
   easy/hard to automate ([testability-notes.md](docs/discovery/testability-notes.md)), the page/nav
   structure being tested against ([site-map.md](docs/discovery/site-map.md)), and what's publicly
   reachable at the API level ([api-notes.md](docs/discovery/api-notes.md)).
-- `tests/navigation/` - the first suite: does every header link and mega-menu item go where it's
-  supposed to, and does the resulting page load.
-- `tests/support/` - shared locator helpers and the hand-maintained site map the nav suites are
-  generated from.
+- `tests/navigation/` - does every header link and mega-menu item go where it's supposed to, and
+  does the resulting page load.
+- `tests/homepage/` - the homepage's own content links (CTAs, solution tiles, footer/legal links)
+  and the search form's structure.
+- `tests/api/` - read-only checks against the public WordPress REST API and the Yoast sitemap.
+- `tests/support/` - shared locator helpers (`locators.ts`, `nav-helpers.ts`) and the
+  hand-maintained link/page data the suites are generated from (`site-map.ts`, `homepage-map.ts`,
+  `api-map.ts`).
 - `.github/workflows/playwright.yml` - CI: runs the suite on every push/PR, publishes a JUnit check
   and posts a PR comment linking straight to the published HTML report (video of every test, pass or
   fail, plus an in-browser trace viewer) on GitHub Pages - no zip download required. Raw
@@ -51,10 +55,14 @@ Test results (JUnit XML, HTML report, videos, traces) are written to `test-resul
 
 1. **Header navigation** (`tests/navigation/`) - shipped. Every top-level header link and every
    mega-menu dropdown item, verified against the real site.
-2. Homepage in-page links/navigation - planned next.
-3. API tests (read-only, against the public WordPress REST API - see api-notes.md) and,
-   contingent on separate research into whether it's safe/possible, login - planned after that.
-4. Accessibility and security testing - noted as follow-up considerations, not yet started.
+2. **Homepage links/navigation** (`tests/homepage/`) - shipped. CTAs, every "solution tile"
+   (heading + icon link), footer/legal links, external links, and the search form's structure.
+3. **Read-only API tests** (`tests/api/`) - shipped. The public WordPress REST API (root index,
+   `wp/v2/pages` lookups, a documented 403 on an endpoint that looks public but isn't) and the
+   Yoast sitemap index - see api-notes.md.
+4. Login - contingent on separate research (outside this repo) into whether it's safe/possible to
+   test at all. Accessibility and security testing are noted as follow-up considerations, not yet
+   started.
 
-No test in this repo submits a form, logs in, or sends any state-changing request - see
-testability-notes.md ("No staging environment") for why.
+No test in this repo submits a form, logs in, or sends any state-changing request (`POST`/`PUT`/
+`PATCH`/`DELETE`) - see testability-notes.md ("No staging environment") and api-notes.md for why.

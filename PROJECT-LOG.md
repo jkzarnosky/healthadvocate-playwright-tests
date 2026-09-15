@@ -9,6 +9,43 @@ force them apart.
 
 ---
 
+## [2026-09-15] — [MILESTONE] Homepage suite + read-only API suite; repo set to auto-delete merged branches
+**Shipped:** Two new suites. `tests/homepage/` covers the homepage's own content: every
+call-to-action link, all 8 "solution tile" cards (heading link + icon link each), the footer/legal
+links, external links, and the search form. `tests/api/` covers the public WordPress REST API
+(root index, page lookups by slug, a documented case where a listed endpoint actually requires
+auth) and the Yoast sitemap index - all plain `GET` requests, nothing state-changing, using
+Playwright's `request` fixture directly (no browser needed). 56 tests pass end to end against the
+live site. Also: the GitHub repo now auto-deletes a branch once its PR merges.
+
+**Decisions made:**
+- **[DECISION]** Homepage locators use `getByRole` + `:visible` (`tests/support/locators.ts`)
+  rather than the header suite's raw-text-regex approach, after finding the homepage duplicates
+  whole content sections (not just the header) and at least one tile's text contains a literal line
+  break that only accessible-name computation normalizes correctly. See DECISIONS.md.
+- **[DECISION]** The "icon link matches heading link" check uses "at least 2 visible links share
+  this href" instead of an exact count, since real duplicate counts vary (2/4/6) across tiles for
+  reasons unrelated to the one real bug (Mind & Body EAP's stale icon URL) it's meant to catch. That
+  one gets its own specific, exact test instead. See DECISIONS.md.
+- **[DECISION]** The search suite checks form structure only, not a submitted query - the search
+  box isn't reachable at this project's desktop test viewport (confirmed off-screen, not just
+  CSS-hidden). See DECISIONS.md and testability-notes.md.
+- **[DECISION]** Corrected a wrong assumption from the original discovery pass rather than testing
+  it as fact: `contact-form-7/v1/contact-forms` looked publicly readable (it's listed in the
+  `wp-json` root index) but actually 403s - now a real contract test instead of stale documentation.
+  See DECISIONS.md.
+
+**Real findings along the way:** a stale, pre-restructure icon-link URL on the Mind & Body EAP tile
+(redirects correctly, but doesn't match its own heading link like every other tile does); the
+homepage's footer "Member Login" link reaches the same login flow as the header's, just via a
+4-hop redirect chain that includes a brief, genuine downgrade to plain HTTP mid-chain (corrected
+from an earlier, less complete note that assumed the two links were simply different destinations).
+
+**Next up:** Login is still deferred pending separate research into whether it's safe/possible to
+test at all. Accessibility and security testing remain noted follow-ups, not yet started.
+
+---
+
 ## [2026-09-15] — [MILESTONE] CI: publish the HTML report to GitHub Pages, link it from the PR
 **Shipped:** JZ asked whether test results/videos could be viewed straight from the PR instead of
 downloading a zip. The workflow now deploys the Playwright HTML report (embedded video per test +

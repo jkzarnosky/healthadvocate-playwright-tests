@@ -48,21 +48,38 @@ navigation suites iterate over.
 
 ```
 Contact Us               -> /site/contact                (duplicate of header "Contact")
-Member Login             -> /site/members                (!= header's members.healthadvocate.com - see caveat)
-Health Advocate Privacy Statement -> /site/privacy
-Global Ethics Hotline    -> https://tp.integrityline.com/   (external)
-Terms of Use             -> /site/terms
+Member Login             -> /members  [new tab]  (4-hop redirect to the same identity.healthadvocate.com
+                                                    login the header reaches directly - see caveat)
+Health Advocate Privacy Statement -> /site/privacy  [new tab]
+Global Ethics Hotline    -> https://tp.integrityline.com/   (external)  [new tab]
+Terms of Use             -> /site/terms  [new tab]
 ```
 
 Address shown: 721 Arbor Way, Suite 150, Blue Bell, PA 19422.
 
-## Other known top-level pages (from Yoast's sitemap / discovery, not yet all linked from nav)
+## Homepage in-page content links (not header/footer)
 
-- `/site/demorequest` (homepage "Request a demo" CTA)
-- `/site/data-analytics` (homepage "Learn more" CTA under the Data & Analytics section)
+```
+"Request a demo"      -> /site/demorequest
+"Explore solutions"   -> /site/product-index
+"Learn more" (Data & Analytics section) -> /site/data-analytics
+"Award-winning healthcare blog" (badge, page bottom) -> https://blog.healthadvocate.com/  [new tab]
+[Facebook, Twitter/X, LinkedIn icon links - external, not deep-tested]
+```
+
+Two rows of "solution tiles" (a heading link and a matching icon/figure link for each) repeat the
+same 8 Solutions destinations already listed under the header nav, **with one exception**: the
+Mind & Body EAP tile's icon links to `/site/mind-body-eap` (missing the `/product-index/` segment
+the heading link and the other 7 tiles all have) - a stale pre-restructure URL. It isn't a dead
+link (confirmed: `301`s to the correct `/site/product-index/mind-body-eap`), but it's the one tile
+where heading and icon don't point at an identical URL. See testability-notes.md and
+`tests/support/homepage-map.ts`.
+
+## Other known top-level pages (from Yoast's sitemap / discovery, not linked from nav or homepage)
+
 - `/site/2027brokerstrategy` (a landing page found via the WP REST API's `wp/v2/pages` listing;
   contains an embedded Pardot form - likely one of many gated/campaign landing pages not linked from
-  primary nav)
+  primary nav or the homepage)
 
 ## Yoast XML sitemap index (`/site/sitemap.xml` -> `/site/sitemap_index.xml`)
 
@@ -85,4 +102,3 @@ the only allow rule; everything else is either disallowed or simply unlisted.
 - `/site/contact` and `/site/product-index/*` sub-pages' own in-page structure (forms, embedded
   widgets) - relevant once a suite goes beyond "does the link work" into "does the resulting page's
   content render correctly."
-- The `/site/members` vs `members.healthadvocate.com` discrepancy noted above.

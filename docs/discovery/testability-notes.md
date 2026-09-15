@@ -86,19 +86,69 @@ will time out, because `page` never navigates - a new tab does. Confirmed by rea
 (`<a target="_blank" ... href="https://blog.healthadvocate.com/">Blog</a>`) rather than guessing from
 the timeout. Handled with `context.waitForEvent('page')` around the click.
 
-## Two different "Member Login" destinations on the same page
+## Two "Member Login" links, same destination, very different paths
 
-The homepage has two separate "Member Login" links that are easy to assume are the same thing:
+The homepage has two separate "Member Login" links. They *do* end up in the same place, but it's
+worth knowing why they look different before writing a test against either:
 
-- The header nav link goes to `https://members.healthadvocate.com/` (the real subdomain, which then
-  redirects through the OIDC login flow to `identity.healthadvocate.com`).
-- A second "Member Login" link, in the page's lower CTA/footer block, points at
-  `https://www.healthadvocate.com/members` - a same-origin relative path, not the members subdomain.
+- The **header** nav link goes straight to `https://members.healthadvocate.com/`, which redirects
+  (2 hops) through the OIDC login flow to `identity.healthadvocate.com`.
+- The **footer**/CTA-block link points at `https://www.healthadvocate.com/members` (same-origin,
+  no `/site/` prefix) - which then chains through **four** redirects before landing on the same
+  member portal: `.../members` (no slash) → `http://www.healthadvocate.com/members/` (a genuine,
+  if momentary, **downgrade to plain HTTP** mid-chain) → `https://www.healthadvocate.com/members/`
+  → `https://members.healthadvocate.com` → `https://members.healthadvocate.com/ha/`, which then
+  itself does a client-side (JS) redirect into the same `identity.healthadvocate.com` OIDC flow the
+  header link reaches directly.
 
-Worth flagging to the team as a possible inconsistency (unclear if `/members` is an intentional
-alias/redirect or a stale link) rather than assuming it's equivalent. This project's header-link
-test only covers the header instance; the footer instance is a candidate for its own test once its
-intended behavior is confirmed.
+Confirmed by following the whole chain with plain `fetch(..., { redirect: 'manual' })` calls, not
+guessed from a timeout. Worth flagging to the team less as "these are different destinations" (they
+aren't) and more as "one of these two working links takes a needlessly long path through a stale
+`/members` redirect, including a real - if brief - unencrypted HTTP hop." Both links are covered in
+this project's test suites: the header instance in `header-links.spec.ts`, the footer instance in
+`homepage-links.spec.ts` (which asserts the eventual destination, not the intermediate hops, since
+Playwright's navigation follows the whole chain automatically).
+
+## The homepage duplicates whole content sections, not just the header
+
+The header's duplicate-DOM issue (see above) turned out not to be a header-only quirk. Several
+homepage "solution tile" headings/links exist **twice** in the real page content itself (not
+counting the header's own copies) - confirmed by counting DOM matches for exact link text: e.g.
+"Wellness & Coaching" resolves to 6 total `<a>` elements (2 in the header's default/sticky copies,
+2 in one on-page content block, 2 in a second on-page content block with separate WPBakery
+CSS-hash IDs). Only one of the on-page copies is genuinely visible at a normal desktop viewport;
+the rest have a zero-size bounding box, almost certainly a responsive desktop/mobile split
+authored as two separate blocks rather than one block reflowed with CSS.
+
+**Consequence:** a locator built from raw text content and a naive `:visible` CSS filter can still
+return zero matches or throw a strict-mode "N elements" error, depending on timing and which
+duplicate happens to be visible. This project's homepage suite uses `getByRole('link', { name,
+exact: true })` intersected with `:visible` (`tests/support/locators.ts`'s `tileLink()`) instead of
+raw text matching - `getByRole`'s accessible-name computation also normalizes internal whitespace,
+which fixed a second, unrelated issue: at least one tile's heading text has a literal line break in
+the markup (`Mental Health<br>& Work/Life (EAP)`), which a naive single-space regex never matches
+but accessible-name computation handles correctly.
+
+## A stale-but-working icon link
+
+Every homepage "solution tile" renders a heading link and a separate icon/figure link. On 7 of 8
+tiles both point at the identical URL. The 8th - Mind & Body EAP - has an icon link pointing at
+`/site/mind-body-eap` instead of the heading's `/site/product-index/mind-body-eap`: a stale,
+pre-site-restructure URL. It isn't dead (confirmed: `301`s to the correct page), but it's a real,
+verified inconsistency worth flagging to the team rather than silently working around - see
+`tests/support/homepage-map.ts` and the dedicated test in `homepage-links.spec.ts`.
+
+## The search box isn't reachable at a desktop viewport
+
+The header's search `<input>` is present in the DOM on every page load, but at this project's
+desktop test viewport it renders **off-screen** (a negative Y coordinate, not just `width:0` or
+`opacity:0`) - confirmed by attempting to click it and getting Playwright's "entirely outside the
+viewport" error. Switching to a mobile viewport (375px) and opening the hamburger menu is the only
+path that visually exposes it; even then, the toggle didn't reveal an obviously interactive search
+field in a quick manual check. Rather than force an interaction the real UI doesn't actually offer
+at desktop width, `homepage-search.spec.ts` only checks the form's structure (`method="get"`,
+`action`, the `s` field name) - real, useful information for a future mobile-viewport interactive
+search test, without pretending a desktop click-and-type flow exists when it doesn't.
 
 ## No staging environment
 

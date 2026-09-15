@@ -1,9 +1,5 @@
 import { Page, Locator, expect } from '@playwright/test';
-
-function exactTextRegex(name: string): RegExp {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`^\\s*${escaped}\\s*$`);
-}
+import { exactTextRegex } from './locators';
 
 /**
  * The Max Mega Menu plugin renders the header markup twice in the DOM (a

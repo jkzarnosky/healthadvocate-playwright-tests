@@ -40,13 +40,17 @@ Candidate for a future safe-`GET` API suite: fetch a known page by slug
 (`wp/v2/pages?slug=careers`) and assert its title/slug/status match what the UI shows, as a
 cheap cross-check that doesn't require rendering a browser at all.
 
-### `contact-form-7/v1` - form *structure* is public, submission was not tested
+### `contact-form-7/v1` - listed in the index, but actually requires authentication
 
-`GET /site/wp-json/contact-form-7/v1/contact-forms` is listed as a public `GET` endpoint (alongside a
-`POST` for actual submission). Discovery did not call it - listing contact-form metadata is
-low-risk and a reasonable future `GET`-only check (e.g., "the contact form's expected fields haven't
-silently changed"), but this project draws the line at read-only for now, and submission is
-explicitly out of scope regardless (see testability-notes.md, "No staging environment").
+`GET /site/wp-json/contact-form-7/v1/contact-forms` is listed in the root index's routes alongside a
+`POST` for submission, which looks like a public, read-only "list the contact forms" endpoint. It
+isn't: calling it (a plain `GET`, nothing state-changing) returns `403 {"code":"wpcf7_forbidden",
+"message":"You are not allowed to access contact forms."}`. **Being listed in the `wp-json` root
+index's route metadata means the route exists, not that it's callable without authentication** - a
+real, worth-remembering distinction the first draft of this note got wrong by assuming "listed"
+meant "public." Corrected once `tests/api/wp-rest-api.spec.ts` was actually written and run against
+the live site rather than left as an assumption. The 403 itself is now a small contract test: if this
+ever starts returning `200`, that's a real permissions change worth noticing.
 
 ## No root `sitemap.xml`; Yoast sitemap lives under `/site/`
 
