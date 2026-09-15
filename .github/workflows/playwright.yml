@@ -80,14 +80,31 @@ jobs:
           destination_dir: ${{ steps.report_meta.outputs.dir }}
           keep_files: true
 
+      # peter-evans/create-or-update-comment has no built-in "find my previous
+      # comment" input (an earlier version of this workflow assumed a
+      # `comment-tag` input that doesn't actually exist in v4 - confirmed by a
+      # real CI run warning "Unexpected input(s) 'comment-tag'" and two
+      # separate comments landing on the same PR). find-comment locates the
+      # marker below explicitly; its output feeds comment-id so the next step
+      # edits that comment instead of creating a new one.
+      - name: Find previous report comment
+        if: always() && steps.report_meta.outcome == 'success' && github.event_name == 'pull_request'
+        uses: peter-evans/find-comment@v3
+        id: find_comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: <!-- playwright-report-comment -->
+
       - name: Comment report link on the PR
         if: always() && steps.report_meta.outcome == 'success' && github.event_name == 'pull_request'
         uses: peter-evans/create-or-update-comment@v4
         with:
+          comment-id: ${{ steps.find_comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
-          comment-tag: playwright-report
           edit-mode: replace
           body: |
+            <!-- playwright-report-comment -->
             ### Playwright report — ${{ steps.run_tests.outcome == 'success' && '✅ all tests passed' || '❌ some tests failed' }}
 
             [View the full HTML report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ steps.report_meta.outputs.dir }}/) — includes a video of every test and an in-browser trace viewer, no download needed.
