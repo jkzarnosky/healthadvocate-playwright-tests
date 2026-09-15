@@ -5,6 +5,41 @@ or more real alternatives), newest at the top.
 
 ---
 
+## 2026-09-15 — Stress-test conclusion: stopped at self-inflicted concurrency, not a residual defect
+
+Closing out the CI-timeout investigation (the two entries below) with the full verification record,
+since this troubleshooting process is worth having on the record as clearly as the fixes themselves.
+
+**Full tally across both stress-test batches** (`gh workflow run` fired several times back to back,
+each watched to completion, failures re-read from the actual trace/log rather than taken at face
+value):
+
+- Batch 1 (mega-menu fix only): 4 runs - 3 fully clean, 1 with a single test failing once and
+  recovering on the very next retry in 4s (versus exhausting all retries every time, before the
+  fix).
+- Batch 2 (mega-menu fix + Revolution Slider fix): 5 runs - 4 with all 56 tests passing (2 of those
+  4 showed as job-level "failure" purely from the already-known `gh-pages` push race, not a test
+  problem); 1 run had 4 tests fail after exhausting retries.
+
+**That last run is the one worth being precise about.** It was the most heavily concurrent point in
+either batch - 4 separate `workflow_dispatch` runs fired within moments of each other, meaning up to
+8 simultaneous Chromium instances (2 workers × 4 runs) competing for GitHub's shared runner capacity
+and network egress to the same external site at once. Its failures were uniform ~17s durations
+across several unrelated interactions (a menu closing almost immediately after a hover that had just
+succeeded), not a repeat of either previously-diagnosed race. Read together with the `gh-pages` push
+conflicts hitting exactly the same concurrent runs, the pattern points at self-inflicted resource
+contention from the verification method itself, not a defect in either fix - normal usage (one PR,
+one run) never produces 4 simultaneous full suites hitting the same site at once.
+
+**Chosen: stop here, not chase this further by, say, adding another layer of defensive waiting.**
+Both real root causes found during this investigation were fixed with evidence-backed, targeted
+changes (see below), not guesses, and every *individually*-triggered run in both batches was clean.
+Continuing to manufacture heavier concurrent load than real usage will ever produce would be
+optimizing for a scenario this project doesn't actually have, at the cost of real complexity in
+`nav-helpers.ts`/`fixtures.ts` for no real-world benefit. If a genuinely single-triggered CI run
+(a real PR, not a stress-test batch) shows this kind of failure in the future, that's new signal
+worth investigating fresh - not something to assume is already covered by this entry.
+
 ## 2026-09-15 — Neutralize Revolution Slider's pointer-event interference in tests
 
 Stress-testing the mega-menu hover fix (below) with extra CI runs surfaced a *second*, unrelated
