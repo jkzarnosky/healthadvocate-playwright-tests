@@ -9,6 +9,30 @@ force them apart.
 
 ---
 
+## [2026-09-16] — [MILESTONE] Stopped gh-pages report directories from growing forever
+**Shipped:** JZ asked for a cleanup of the accumulated report videos - checking first confirmed
+`reports/main` had grown on every single push (458 → 755 files across 5 deploys, zero ever
+removed), since the Pages-deploy action overlays fresh files without clearing old ones and every
+run's video/trace files have unique, never-colliding names. Two fixes: the deploy step now clears
+its own destination path before redeploying (so a run replaces itself instead of piling up), and a
+new job deletes a PR's report directory entirely once that PR closes. Also did a one-time manual
+purge of what had already piled up - all 5 merged PRs' report directories removed, `reports/main`
+reset to just the current run's files.
+
+**Decisions made:**
+- **[DECISION]** Clear-then-redeploy via a throwaway `git worktree`, not `keep_files: false` - that
+  flag wipes the *entire* `gh-pages` branch on every deploy, which would delete every other open
+  PR's still-live report, not just the stale content in the path actually being redeployed. See
+  DECISIONS.md.
+- **[DECISION]** The one-time manual purge went straight to `gh-pages`, not through a PR - that
+  branch holds only generated artifacts and isn't covered by the "PRs for everything" policy, which
+  is specifically about `main`.
+
+**Next up:** Login remains deferred pending separate research; accessibility/security testing are
+still noted follow-ups.
+
+---
+
 ## [2026-09-15] — [MILESTONE] CI-timeout investigation closed out: 9 stress-test runs, verdict logged
 **Shipped:** No new code - closing out the CI-flakiness investigation from the two entries below with
 the full verification record, since JZ specifically flagged this troubleshooting process as worth
