@@ -9,6 +9,32 @@ force them apart.
 
 ---
 
+## [2026-09-16] — [MILESTONE] Stopped gh-pages report directories from growing forever
+**Shipped:** JZ asked for a cleanup of the accumulated report videos - checking first confirmed
+`reports/main` had grown on every single push (458 → 755 files across 5 deploys, zero ever
+removed), since the Pages-deploy action overlays fresh files without clearing old ones and every
+run's video/trace files have unique, never-colliding names. Two fixes: the deploy step now clears
+its own destination path before redeploying (so a run replaces itself instead of piling up), and a
+new job deletes a PR's report directory entirely once that PR closes. Also did a one-time manual
+purge of what had already piled up - all 5 merged PRs' report directories removed, `reports/main`
+reset to just the current run's files. A first version of the redeploy step raced with
+`peaceiris/actions-gh-pages`'s own push to the same branch (caught by a real CI run, fixed in a
+follow-up by hand-rolling the whole deploy as one sequence instead of two coordinating steps).
+
+**Decisions made:**
+- **[DECISION]** Clear-then-redeploy via a throwaway `git worktree`, not `keep_files: false` - that
+  flag wipes the *entire* `gh-pages` branch on every deploy, which would delete every other open
+  PR's still-live report, not just the stale content in the path actually being redeployed. See
+  DECISIONS.md.
+- **[DECISION]** The one-time manual purge went straight to `gh-pages`, not through a PR - that
+  branch holds only generated artifacts and isn't covered by the "PRs for everything" policy, which
+  is specifically about `main`.
+
+**Next up:** Login remains deferred pending separate research; accessibility/security testing are
+still noted follow-ups.
+
+---
+
 ## [2026-09-16] — [MILESTONE] Fixed a third mega-menu interception case (a neighboring closed item)
 **Shipped:** JZ noticed 2 flaky tests in a normal (not stress-tested) CI run's published report and
 asked for them fixed rather than left to Playwright's retry safety net. The real trace showed a
@@ -26,9 +52,8 @@ without weakening the tests that genuinely need real click/hover mechanics (kept
   "Solutions" trigger (still needs a real click to exercise its actual first-click-opens-menu
   behavior) and "About Us" (still needs a real check that it has no href). See DECISIONS.md.
 
-**Next up:** Orchestrating a cleanup of the `gh-pages` branch's accumulated report/video files
-(growing unbounded - each deploy adds new content-hashed files but never removes old ones) and
-adding a workflow fix so it doesn't reaccumulate.
+**Next up:** Merged before this branch was updated with the gh-pages cleanup work above - both are
+shipped now.
 
 ---
 

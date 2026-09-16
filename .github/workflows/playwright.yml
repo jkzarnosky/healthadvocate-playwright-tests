@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch: {}
 
 permissions:
@@ -15,6 +16,10 @@ permissions:
 jobs:
   test:
     name: Run Playwright suite
+    # Skip on a "closed" pull_request event (added to the trigger above only
+    # so cleanup-pr-report, below, can run on it) - there's no new code to
+    # test when a PR is just closing.
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -71,14 +76,47 @@ jobs:
             echo "dir=reports/main" >> "$GITHUB_OUTPUT"
           fi
 
+      # A hand-rolled deploy, not peaceiris/actions-gh-pages: an earlier
+      # version of this step ran a separate "clear stale files" push
+      # immediately before peaceiris's own push to the same branch, and the
+      # two didn't coordinate - peaceiris pushed based on a ref it had
+      # already fetched, so its push was rejected as non-fast-forward right
+      # after the clearing commit landed (confirmed by a real CI run: "the
+      # remote contains work that you do not have locally"). Doing the
+      # clear-then-copy-then-commit-then-push as one continuous sequence in
+      # a single step, with nothing else touching the branch in between,
+      # removes that coordination problem at the root rather than trying to
+      # patch around a second actor's internal caching. See DECISIONS.md
+      # ("Stop gh-pages report directories from growing forever").
+      #
+      # destination_dir's own old content is cleared first (Playwright names
+      # every run's video/trace files by content hash, so nothing would
+      # otherwise collide or ever get removed - confirmed reports/main grew
+      # by 50-100 files on every single push before this fix existed);
+      # every other path on gh-pages (every other open PR's own report) is
+      # left untouched, since only this one destination_dir is ever removed.
       - name: Publish HTML report to GitHub Pages
         if: always() && steps.report_meta.outcome == 'success'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: playwright-report
-          destination_dir: ${{ steps.report_meta.outputs.dir }}
-          keep_files: true
+        run: |
+          DIR="${{ steps.report_meta.outputs.dir }}"
+          if git ls-remote --exit-code --heads origin gh-pages > /dev/null 2>&1; then
+            git fetch origin gh-pages --depth=1
+            git worktree add gh-pages-deploy origin/gh-pages
+          else
+            git worktree add --orphan -b gh-pages gh-pages-deploy
+          fi
+          rm -rf "gh-pages-deploy/$DIR"
+          mkdir -p "gh-pages-deploy/$DIR"
+          cp -r playwright-report/. "gh-pages-deploy/$DIR/"
+          touch gh-pages-deploy/.nojekyll
+          cd gh-pages-deploy
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "deploy: ${{ github.sha }} ($DIR)"
+            git push origin HEAD:gh-pages
+          fi
 
       # peter-evans/create-or-update-comment has no built-in "find my previous
       # comment" input (an earlier version of this workflow assumed a
@@ -114,3 +152,35 @@ jobs:
       - name: Fail job if tests failed
         if: steps.run_tests.outcome == 'failure'
         run: exit 1
+
+  cleanup-pr-report:
+    name: Remove closed PR's report from gh-pages
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # A closed PR (merged or not) has no reviewer left to send back to its
+      # report link - reports/pr-<number> is safe to delete outright rather
+      # than just stop growing it. See DECISIONS.md ("Stop gh-pages report
+      # directories from growing forever").
+      - name: Delete reports/pr-<number>
+        run: |
+          DIR="reports/pr-${{ github.event.pull_request.number }}"
+          if git ls-remote --exit-code --heads origin gh-pages > /dev/null 2>&1; then
+            git fetch origin gh-pages --depth=1
+            git worktree add gh-pages-clean origin/gh-pages
+            if [ -d "gh-pages-clean/$DIR" ]; then
+              rm -rf "gh-pages-clean/$DIR"
+              cd gh-pages-clean
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git add -A
+              git commit -m "cleanup: remove $DIR (PR closed)"
+              git push origin HEAD:gh-pages
+            fi
+          fi
