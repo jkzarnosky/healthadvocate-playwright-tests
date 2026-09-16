@@ -9,6 +9,29 @@ force them apart.
 
 ---
 
+## [2026-09-16] — [MILESTONE] Fixed a third mega-menu interception case (a neighboring closed item)
+**Shipped:** JZ noticed 2 flaky tests in a normal (not stress-tested) CI run's published report and
+asked for them fixed rather than left to Playwright's retry safety net. The real trace showed a
+third, distinct cause from the two already fixed: a different, closed top-level menu item's own
+`<li>` occasionally intercepting a click meant for a sibling's child link - likely the real mouse's
+travel path grazing a neighboring item near a menu boundary. Fixed by switching the mega-menu
+child-link tests from a real mouse click to `locator.dispatchEvent('click')` once the target is
+already confirmed visible/stable, which invokes the click handler directly instead of hit-testing at
+pixel coordinates - sidesteps this whole class of "something else is on top of the target" problem
+without weakening the tests that genuinely need real click/hover mechanics (kept as-is).
+
+**Decisions made:**
+- **[DECISION]** `dispatchEvent('click')` for leaf-link mega-menu clicks specifically, not a
+  broader change - these children have no click-interception JS of their own, unlike the
+  "Solutions" trigger (still needs a real click to exercise its actual first-click-opens-menu
+  behavior) and "About Us" (still needs a real check that it has no href). See DECISIONS.md.
+
+**Next up:** Orchestrating a cleanup of the `gh-pages` branch's accumulated report/video files
+(growing unbounded - each deploy adds new content-hashed files but never removes old ones) and
+adding a workflow fix so it doesn't reaccumulate.
+
+---
+
 ## [2026-09-15] — [MILESTONE] CI-timeout investigation closed out: 9 stress-test runs, verdict logged
 **Shipped:** No new code - closing out the CI-flakiness investigation from the two entries below with
 the full verification record, since JZ specifically flagged this troubleshooting process as worth
