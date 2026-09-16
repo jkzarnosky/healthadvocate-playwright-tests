@@ -76,41 +76,47 @@ jobs:
             echo "dir=reports/main" >> "$GITHUB_OUTPUT"
           fi
 
-      # peaceiris/actions-gh-pages overlays publish_dir onto destination_dir
-      # without first clearing it - Playwright names each run's video/trace
-      # files by content hash, so nothing ever collides and old runs' files
-      # just accumulate forever (confirmed: reports/main grew by 50-100
-      # files on every single push to main). keep_files: true (below) has to
-      # stay - it's what protects every *other* destination_dir (every open
-      # PR's own report) from being wiped - so the fix is clearing only
-      # *this* deploy's own destination_dir first, on a throwaway checkout,
-      # before peaceiris lays down the fresh files. See DECISIONS.md
+      # A hand-rolled deploy, not peaceiris/actions-gh-pages: an earlier
+      # version of this step ran a separate "clear stale files" push
+      # immediately before peaceiris's own push to the same branch, and the
+      # two didn't coordinate - peaceiris pushed based on a ref it had
+      # already fetched, so its push was rejected as non-fast-forward right
+      # after the clearing commit landed (confirmed by a real CI run: "the
+      # remote contains work that you do not have locally"). Doing the
+      # clear-then-copy-then-commit-then-push as one continuous sequence in
+      # a single step, with nothing else touching the branch in between,
+      # removes that coordination problem at the root rather than trying to
+      # patch around a second actor's internal caching. See DECISIONS.md
       # ("Stop gh-pages report directories from growing forever").
-      - name: Clear stale files at this report path before redeploying
-        if: always() && steps.report_meta.outcome == 'success'
-        run: |
-          if git ls-remote --exit-code --heads origin gh-pages > /dev/null 2>&1; then
-            git fetch origin gh-pages --depth=1
-            git worktree add gh-pages-clean origin/gh-pages
-            if [ -d "gh-pages-clean/${{ steps.report_meta.outputs.dir }}" ]; then
-              rm -rf "gh-pages-clean/${{ steps.report_meta.outputs.dir }}"
-              cd gh-pages-clean
-              git config user.name "github-actions[bot]"
-              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-              git add -A
-              git commit -m "cleanup: clear stale ${{ steps.report_meta.outputs.dir }} before redeploy"
-              git push origin HEAD:gh-pages
-            fi
-          fi
-
+      #
+      # destination_dir's own old content is cleared first (Playwright names
+      # every run's video/trace files by content hash, so nothing would
+      # otherwise collide or ever get removed - confirmed reports/main grew
+      # by 50-100 files on every single push before this fix existed);
+      # every other path on gh-pages (every other open PR's own report) is
+      # left untouched, since only this one destination_dir is ever removed.
       - name: Publish HTML report to GitHub Pages
         if: always() && steps.report_meta.outcome == 'success'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: playwright-report
-          destination_dir: ${{ steps.report_meta.outputs.dir }}
-          keep_files: true
+        run: |
+          DIR="${{ steps.report_meta.outputs.dir }}"
+          if git ls-remote --exit-code --heads origin gh-pages > /dev/null 2>&1; then
+            git fetch origin gh-pages --depth=1
+            git worktree add gh-pages-deploy origin/gh-pages
+          else
+            git worktree add --orphan -b gh-pages gh-pages-deploy
+          fi
+          rm -rf "gh-pages-deploy/$DIR"
+          mkdir -p "gh-pages-deploy/$DIR"
+          cp -r playwright-report/. "gh-pages-deploy/$DIR/"
+          touch gh-pages-deploy/.nojekyll
+          cd gh-pages-deploy
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "deploy: ${{ github.sha }} ($DIR)"
+            git push origin HEAD:gh-pages
+          fi
 
       # peter-evans/create-or-update-comment has no built-in "find my previous
       # comment" input (an earlier version of this workflow assumed a

@@ -21,11 +21,18 @@ other open PR's still-live report on every push. Already rejected once for this 
 Pages setup was first built (see the "Publish the HTML report to GitHub Pages" entry).
 
 **Chosen:** two targeted fixes, both operating on a throwaway `git worktree` of `gh-pages` rather
-than touching the actual GitHub Pages deploy mechanism:
-1. Before every deploy, a new workflow step clears *only* that deploy's own `destination_dir`
-   (`reports/main` or `reports/pr-<n>`) on `gh-pages`, then lets `peaceiris/actions-gh-pages` lay
-   down fresh files - so each deploy replaces itself instead of piling onto its own history.
-   `keep_files: true` stays in place, so every *other* path is still untouched.
+than the actual GitHub Pages content everyone else reads:
+1. The deploy step now clears *only* that deploy's own `destination_dir` (`reports/main` or
+   `reports/pr-<n>`), copies in the fresh report, commits, and pushes - all as one continuous
+   sequence, replacing `peaceiris/actions-gh-pages` rather than running alongside it. First version
+   ran the clear as a separate push immediately before peaceiris's own push to the same branch;
+   they didn't coordinate - peaceiris pushed based on a ref it had already fetched, so its push was
+   rejected as non-fast-forward right after the clearing commit landed (a real CI run confirmed
+   this: "the remote contains work that you do not have locally," caught by deliberately triggering
+   a *second* run on the same branch to exercise the "something to clear" path, not just the first
+   deploy where there's nothing yet to clear). Doing it as one hand-rolled step removes that
+   coordination problem at the root. Every other path on `gh-pages` (every other open PR's own
+   report) is left untouched, since only this one `destination_dir` is ever removed.
 2. A new `cleanup-pr-report` job, triggered on `pull_request: types: [closed]` (added to the
    existing trigger), deletes `reports/pr-<n>` entirely once that PR closes - merged or not, nobody
    has a reason to come back to a closed PR's report, so there's no reason to keep growing (or even
