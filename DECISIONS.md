@@ -248,7 +248,8 @@ api-notes.md's OIDC-scope findings) without attempting any actual authentication
 ## 2026-09-15 — Site map is hand-maintained data, not scraped at test time
 
 `tests/support/site-map.ts` is a plain TypeScript file listing every header link/dropdown item and
-its expected destination, written by hand from manual discovery.
+its expected destination, written by hand from manual discovery. Future consideration: scheduled
+incremental checks to verify/update the site map.
 
 **Alternative considered:** derive the nav structure dynamically at test time (crawl the page,
 extract every header `<a>`) instead of hardcoding it. Rejected for this first suite: a
@@ -289,6 +290,7 @@ strategy is even stable. Revisit once the navigation suite is proven out across 
 happy-path run is itself part of what gets presented), not the more common "retain-on-failure"
 default. Traded off against artifact size - acceptable for a header-navigation suite (21 short
 tests); worth revisiting if a much larger suite later makes the video artifact unreasonably large.
+When at scale, focus on new tests and E2E scenarios.
 
 ## 2026-09-15 — Public GitHub repo, no GitHub Issues/Projects
 
