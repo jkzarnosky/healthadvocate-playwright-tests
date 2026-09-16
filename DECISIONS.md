@@ -5,6 +5,39 @@ or more real alternatives), newest at the top.
 
 ---
 
+## 2026-09-16 — Stop gh-pages report directories from growing forever
+
+JZ asked whether the published HTML reports could be viewed straight from the browser (answered in
+an earlier session, leading to the GitHub Pages setup) - then, once that was live for a while,
+asked to clean up the video/trace accumulation it turned out to cause. Checked before fixing:
+`reports/main`'s file count had climbed on literally every single push to `main` (458 → 516 → 595 →
+694 → 755 files across 5 consecutive deploys, zero deletions) - `peaceiris/actions-gh-pages` overlays
+`publish_dir` onto `destination_dir` without clearing it first, and Playwright names every run's
+video/trace files by content hash, so nothing ever collides and nothing ever gets removed.
+
+**Alternative considered: `keep_files: false`.** That's the obvious-looking flag, but it wipes the
+*entire* `gh-pages` branch before each deploy, not just the current destination - would delete every
+other open PR's still-live report on every push. Already rejected once for this reason when the
+Pages setup was first built (see the "Publish the HTML report to GitHub Pages" entry).
+
+**Chosen:** two targeted fixes, both operating on a throwaway `git worktree` of `gh-pages` rather
+than touching the actual GitHub Pages deploy mechanism:
+1. Before every deploy, a new workflow step clears *only* that deploy's own `destination_dir`
+   (`reports/main` or `reports/pr-<n>`) on `gh-pages`, then lets `peaceiris/actions-gh-pages` lay
+   down fresh files - so each deploy replaces itself instead of piling onto its own history.
+   `keep_files: true` stays in place, so every *other* path is still untouched.
+2. A new `cleanup-pr-report` job, triggered on `pull_request: types: [closed]` (added to the
+   existing trigger), deletes `reports/pr-<n>` entirely once that PR closes - merged or not, nobody
+   has a reason to come back to a closed PR's report, so there's no reason to keep growing (or even
+   keep) that directory at all.
+
+**Also:** did a one-time manual purge of the bloat that had already accumulated before this fix
+existed - `reports/pr-1` through `reports/pr-5` deleted outright (all their PRs are merged/closed),
+`reports/main` reset to just the latest run's actual output. Pushed directly to `gh-pages`, not
+through a PR - that branch holds only generated artifacts, is managed by this same workflow already
+pushing to it directly, and isn't covered by the "no direct pushes" policy (that's specifically
+about `main`).
+
 ## 2026-09-15 — Stress-test conclusion: stopped at self-inflicted concurrency, not a residual defect
 
 Closing out the CI-timeout investigation (the two entries below) with the full verification record,
