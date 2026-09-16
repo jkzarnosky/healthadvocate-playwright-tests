@@ -17,7 +17,9 @@ run's video/trace files have unique, never-colliding names. Two fixes: the deplo
 its own destination path before redeploying (so a run replaces itself instead of piling up), and a
 new job deletes a PR's report directory entirely once that PR closes. Also did a one-time manual
 purge of what had already piled up - all 5 merged PRs' report directories removed, `reports/main`
-reset to just the current run's files.
+reset to just the current run's files. A first version of the redeploy step raced with
+`peaceiris/actions-gh-pages`'s own push to the same branch (caught by a real CI run, fixed in a
+follow-up by hand-rolling the whole deploy as one sequence instead of two coordinating steps).
 
 **Decisions made:**
 - **[DECISION]** Clear-then-redeploy via a throwaway `git worktree`, not `keep_files: false` - that
@@ -30,6 +32,28 @@ reset to just the current run's files.
 
 **Next up:** Login remains deferred pending separate research; accessibility/security testing are
 still noted follow-ups.
+
+---
+
+## [2026-09-16] — [MILESTONE] Fixed a third mega-menu interception case (a neighboring closed item)
+**Shipped:** JZ noticed 2 flaky tests in a normal (not stress-tested) CI run's published report and
+asked for them fixed rather than left to Playwright's retry safety net. The real trace showed a
+third, distinct cause from the two already fixed: a different, closed top-level menu item's own
+`<li>` occasionally intercepting a click meant for a sibling's child link - likely the real mouse's
+travel path grazing a neighboring item near a menu boundary. Fixed by switching the mega-menu
+child-link tests from a real mouse click to `locator.dispatchEvent('click')` once the target is
+already confirmed visible/stable, which invokes the click handler directly instead of hit-testing at
+pixel coordinates - sidesteps this whole class of "something else is on top of the target" problem
+without weakening the tests that genuinely need real click/hover mechanics (kept as-is).
+
+**Decisions made:**
+- **[DECISION]** `dispatchEvent('click')` for leaf-link mega-menu clicks specifically, not a
+  broader change - these children have no click-interception JS of their own, unlike the
+  "Solutions" trigger (still needs a real click to exercise its actual first-click-opens-menu
+  behavior) and "About Us" (still needs a real check that it has no href). See DECISIONS.md.
+
+**Next up:** Merged before this branch was updated with the gh-pages cleanup work above - both are
+shipped now.
 
 ---
 

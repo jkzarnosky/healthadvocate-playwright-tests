@@ -181,6 +181,30 @@ wrapper elements via `page.addInitScript()` (re-applied on every navigation, not
 None of this project's tests exercise the slider itself, so disabling its ability to intercept
 clicks doesn't weaken what's actually being tested.
 
+## A neighboring (closed) mega-menu item can also steal a click
+
+A third, distinct interception case, found in a normal (not stress-tested) CI run: clicking a
+mega-menu child link occasionally hit a *different* top-level item's own `<li>` instead - one whose
+own dropdown was closed (`aria-expanded="false"`) but whose `mega-menu-flyout`-positioned container
+still momentarily occupied screen space over the actual target. Likely cause: the real mouse's
+travel path toward a child near a menu boundary can graze the neighboring item's container.
+
+```
+- <a tabindex="0" role="button" aria-expanded="false" class="mega-menu-link">…</a>
+  from <li ... class="mega-menu-item-has-children ... mega-menu-flyout mega-disable-link">…</li>
+  subtree intercepts pointer events
+```
+
+**Fix used:** the mega-menu child-link tests (`header-dropdowns.spec.ts`) use
+`locator.dispatchEvent('click')` instead of a real mouse `.click()`, once `openMegaMenu()` has
+already hovered and confirmed the target is genuinely visible/stable. `dispatchEvent` invokes the
+element's click handler directly rather than hit-testing at pixel coordinates, which sidesteps this
+whole class of "something else happens to be on top of the target" problem. Kept as real
+clicks/hovers where that would weaken what's actually being tested: the "Solutions" trigger's own
+first-click-opens-menu behavior, and "About Us" having no href, both depend on genuine click/hover
+mechanics. See DECISIONS.md ("Mega-menu leaf-link clicks: dispatchEvent instead of a real mouse
+click").
+
 ## Third-party embeds add real load/flakiness risk
 
 - A NICE inContact live-chat widget loads as a sandboxed `<iframe>` and uses IndexedDB

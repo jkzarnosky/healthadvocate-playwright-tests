@@ -45,6 +45,48 @@ through a PR - that branch holds only generated artifacts, is managed by this sa
 pushing to it directly, and isn't covered by the "no direct pushes" policy (that's specifically
 about `main`).
 
+## 2026-09-16 — Mega-menu leaf-link clicks: dispatchEvent instead of a real mouse click
+
+A normal (single, non-stress-tested) push to `main` still showed 2 flaky mega-menu tests in its
+published report - "Solutions" > "Health Advocacy & Navigation" and "About Us" > "News &
+Resources", both failing on the first attempt and recovering on retry. The
+"stress-test conclusion" entry below had predicted occasional flakes like this could still surface
+in normal usage; this is that surfacing, and it turned out to be a genuinely third, distinct cause -
+worth fixing properly rather than leaving to Playwright's retry safety net indefinitely.
+
+Real trace evidence, not a guess:
+
+```
+- <a tabindex="0" role="button" aria-expanded="false" class="mega-menu-link">…</a>
+  from <li ... class="mega-menu-item-has-children ... mega-menu-flyout mega-disable-link">…</li>
+  subtree intercepts pointer events
+```
+
+The intercepting element is a *different* top-level menu item's own `<li>` (in this case "About
+Us"'s, `aria-expanded="false"` - its own dropdown is closed) sitting on top of the actual click
+target, a sibling item's child link. Neither the earlier hoverIntent-close fix nor the Revolution
+Slider fix address this - it isn't the menu closing, and it isn't the carousel. The likely
+mechanism: `openMegaMenu()` moves the real mouse cursor along a path toward the target child, and
+that path can graze a neighboring top-level item's `mega-menu-flyout`-positioned container, which
+momentarily claims screen space over the actual target.
+
+**Alternative considered: work around the specific neighboring element, same pattern as the earlier
+two fixes.** Rejected - unlike those two, this isn't one identifiable interferer with a knowable
+end-state to wait for or neutralize; it's a structural risk of *any* real mouse-coordinate click
+landing near menu boundaries, and the next occurrence could just as easily be a different neighbor.
+
+**Chosen:** for the mega-menu child-link "navigates to the correct page" tests specifically,
+replaced `locator.click()` with `locator.dispatchEvent('click')`. `openMegaMenu()` already hovers
+and confirms the exact target is visible and stable via a real mouse interaction (still needed,
+since that's what genuinely reveals the menu) - the remaining `.click()` was the only step still
+vulnerable to hit-testing at pixel coordinates. `dispatchEvent` invokes the element's click handler
+directly, bypassing hit-testing entirely, which is appropriate here because every affected child is
+a plain `<a href>` with no click-interception logic of its own (unlike a top-level trigger such as
+"Solutions," which needs a genuinely trusted click to exercise its real first-click-opens-menu
+behavior - that test, and "About Us" has no href, both keep real clicks/hovers on purpose). Verified
+this still correctly triggers `target="_blank"` navigation for the Blog link too - anchor click
+handling is native browser behavior, not gated on event trust.
+
 ## 2026-09-15 — Stress-test conclusion: stopped at self-inflicted concurrency, not a residual defect
 
 Closing out the CI-timeout investigation (the two entries below) with the full verification record,
